@@ -6,6 +6,7 @@
 <title>Dashboard Financeiro ENETEC 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap');
 
@@ -82,7 +83,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .chart-title { font-size: 11px; font-weight: 500; color: var(--hint); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
 
 .prog-list { display: flex; flex-direction: column; gap: 12px; }
-.prog-item {}
 .prog-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
 .prog-name { font-weight: 500; color: var(--text); }
 .prog-val { font-family: 'DM Mono', monospace; color: var(--muted); }
@@ -131,9 +131,48 @@ tr:hover td { background: var(--surface2); }
 .note { font-size: 11px; color: var(--hint); margin-top: 8px; font-style: italic; }
 .data-source { font-size: 10px; color: var(--hint); margin-top: 6px; display: flex; align-items: center; gap: 5px; }
 .data-source span { background: var(--surface2); padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--border2); }
+
+/* ===== Login Gate ===== */
+#loginGate {
+  position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+#loginGate.hidden { display: none; }
+.login-box {
+  background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius-lg);
+  padding: 40px 36px; text-align: center; max-width: 360px; width: 100%;
+}
+.login-box h2 { font-family: 'Syne', sans-serif; font-size: 20px; margin-bottom: 6px; }
+.login-box p { font-size: 13px; color: var(--hint); margin-bottom: 22px; line-height: 1.5; }
+.login-google-btn {
+  display: inline-flex; align-items: center; gap: 10px; justify-content: center;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 10px 18px; font-family: 'Syne', sans-serif; font-size: 14px;
+  font-weight: 500; cursor: pointer; width: 100%; transition: all .15s;
+}
+.login-google-btn:hover { background: var(--surface2); }
+.login-error { color: #c0392b; font-size: 12px; margin-top: 14px; display: none; }
+.login-error.show { display: block; }
+#userBadge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--hint); }
+#userBadge img { width: 22px; height: 22px; border-radius: 50%; }
+.logout-link { font-size: 11px; color: var(--hint); text-decoration: underline; cursor: pointer; margin-left: 4px; }
 </style>
 </head>
 <body>
+
+<!-- Login Gate: cobre tudo até o usuário autenticar com a conta Google da instituição -->
+<div id="loginGate">
+  <div class="login-box">
+    <h2>ENETEC Financeiro</h2>
+    <p>Acesso restrito. Entre com sua conta Google institucional para visualizar o dashboard.</p>
+    <button class="login-google-btn" id="loginBtn" onclick="iniciarLogin()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.4 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.1 18.9 12 24 12c3.1 0 5.8 1.1 8 3l6-6C34.4 5.1 29.5 3 24 3 16.3 3 9.7 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.4 0 10.2-2 13.8-5.2l-6.4-5.4C29.3 36 26.8 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.4-2.3 4.4-4.2 5.9l6.4 5.4C40.9 36.2 45 30.7 45 24c0-1.2-.1-2.4-.4-3.5z"/></svg>
+      Entrar com Google
+    </button>
+    <p class="login-error" id="loginError">Acesso negado. Use sua conta Google da instituição.</p>
+  </div>
+</div>
+
 <div class="container">
 
   <!-- Loading -->
@@ -150,6 +189,11 @@ tr:hover td { background: var(--surface2); }
   <div class="dash-header">
     <div class="dash-title">ENETEC <span>Financeiro</span></div>
     <div class="dash-header-right">
+      <span id="userBadge" style="display:none"></span>
+      <button class="import-btn" id="refreshBtn" onclick="loadFromGoogleSheets()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Atualizar dados
+      </button>
       <button class="import-btn" onclick="document.getElementById('fileInput').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Importar Planilha
@@ -478,6 +522,113 @@ function parseWorkbook(wb, filename) {
 
   renderAll();
   showBanner(`✓ "${filename}" carregado com sucesso — ${DB.transacoes.length} transações, ${DB.projetos.length} projetos.`);
+}
+
+// ═══════════════════════════════════════════════════════
+// LOGIN (Google Identity Services) + LEITURA VIA SHEETS API
+// ═══════════════════════════════════════════════════════
+// ID extraído da URL da planilha:
+// https://docs.google.com/spreadsheets/d/ESTE_ID_AQUI/edit
+const GS_SHEET_ID = '1n0di7NhhpIjLCVB3NsOl4i9UQu1ZjxCtAgDjD55-j8Y';
+
+// Client ID OAuth2 gerado no Google Cloud Console (tipo "Aplicativo da Web")
+const GOOGLE_CLIENT_ID = '1000356753447-6onugldk7163gtihrqdhve11hqs5es74.apps.googleusercontent.com';
+
+// Domínio institucional — usado apenas para feedback visual rápido.
+// A segurança REAL vem do compartilhamento da planilha no Google Drive.
+const ALLOWED_DOMAIN = 'https://enetec-automacoes.github.io';
+
+// Nomes das abas exatamente como aparecem no Google Sheets
+const GS_TABS = ['Transacoes', 'Projetos', 'Orçamento', 'Clientes'];
+
+let accessToken = null;
+let tokenClient = null;
+
+function iniciarLogin() {
+  document.getElementById('loginError').classList.remove('show');
+  if (!tokenClient) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email',
+      hint: '', // opcional: pode sugerir @suainstituicao.com.br
+      callback: handleTokenResponse
+    });
+  }
+  tokenClient.requestAccessToken();
+}
+
+async function handleTokenResponse(resp) {
+  if (resp.error) {
+    document.getElementById('loginError').textContent = 'Falha no login: ' + resp.error;
+    document.getElementById('loginError').classList.add('show');
+    return;
+  }
+  accessToken = resp.access_token;
+
+  // Busca e-mail do usuário só para exibir no cabeçalho (cosmético)
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const info = await r.json();
+    const badge = document.getElementById('userBadge');
+    badge.style.display = 'flex';
+    badge.innerHTML = `<img src="${info.picture || ''}" onerror="this.style.display='none'">
+      ${info.email} <span class="logout-link" onclick="logout()">sair</span>`;
+  } catch (e) { /* não bloqueia o fluxo se falhar */ }
+
+  document.getElementById('loginGate').classList.add('hidden');
+  loadFromGoogleSheets();
+
+  // Renova o token silenciosamente antes de expirar (~55 min)
+  setTimeout(() => tokenClient.requestAccessToken({ prompt: '' }), 55 * 60 * 1000);
+}
+
+function logout() {
+  if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+  accessToken = null;
+  document.getElementById('userBadge').style.display = 'none';
+  document.getElementById('loginGate').classList.remove('hidden');
+}
+
+// Lê todas as abas de uma vez via Sheets API (values:batchGet) e monta
+// um "workbook" no formato que parseWorkbook() já espera — assim a função
+// que processa os dados continua exatamente igual.
+async function loadFromGoogleSheets() {
+  if (!accessToken) { document.getElementById('loginGate').classList.remove('hidden'); return; }
+
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('show');
+  try {
+    const params = GS_TABS.map(t => 'ranges=' + encodeURIComponent(t)).join('&');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values:batchGet?${params}`;
+    const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+
+    if (resp.status === 401) {
+      // Token expirou — pede um novo e tenta de novo
+      tokenClient.requestAccessToken();
+      return;
+    }
+    if (resp.status === 403) {
+      throw new Error('Sua conta não tem permissão para ver esta planilha. Peça acesso ao administrador.');
+    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const data = await resp.json();
+    const wb = { SheetNames: [], Sheets: {} };
+    data.valueRanges.forEach((vr, i) => {
+      const name = GS_TABS[i];
+      const values = vr.values || [];
+      wb.SheetNames.push(name);
+      wb.Sheets[name] = XLSX.utils.aoa_to_sheet(values);
+    });
+
+    parseWorkbook(wb, 'Google Sheets (login institucional)');
+  } catch (err) {
+    showBanner('Erro ao carregar do Google Sheets: ' + err.message, true);
+  } finally {
+    overlay.classList.remove('show');
+  }
 }
 
 function showBanner(msg, isError = false) {
@@ -832,6 +983,7 @@ window.addEventListener('DOMContentLoaded', () => {
       options: { responsive: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
     });
   }
+  // O carregamento dos dados só acontece após o login com Google (ver iniciarLogin / handleTokenResponse)
 });
 </script>
 </body>
